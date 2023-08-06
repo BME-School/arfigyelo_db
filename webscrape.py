@@ -10,7 +10,26 @@ import webscrape_util
 import sqlite3
 import time
 import threading
+import mysql.connector
 
+
+db_config = {
+    "host": "localhost",
+    "user": "admin",
+    "password": "admin",
+    "database": "arfigyelo"
+}
+
+mysql_conn = mysql.connector.connect(**db_config)
+mysql_cursor = mysql_conn.cursor()
+
+
+def update_mysql_row(market, sku, value):
+    mysql_cursor.execute(f"SELECT * FROM products WHERE {market}=?", (sku,))
+    result = mysql_cursor.fetchone()
+    if result:
+        mysql_cursor.execute(f"UPDATE products SET {market}_price = ? WHERE {market}=?", (value, sku))
+        mysql_conn.commit()
 
 
 options = Options()
@@ -25,70 +44,73 @@ def get_first_price(txt):
     return int(float(match.group(1).replace(",", "").replace(" ", ""))) if match else 0
 
 
-def get_all_price_aldi():
-    category = webscrape_util.get_category_aldi()
-    conn = sqlite3.connect('adatbazis_aldi.db')
-    c = conn.cursor()
-    driver = webdriver.Chrome(options=options)
-
-    for cg in category:
-        driver.get(cg)
-        try:
-            category_name = WebDriverWait(driver, 20).until(EC.presence_of_element_located((By.CSS_SELECTOR, "h1"))).text
-        except TimeoutException:
-            print(cg)
-            category.append(cg)
-            continue
-
-
-        products_sql = []
-        prices_sql = []
-        while True:
-            original_url = driver.current_url
-            driver.find_element(By.TAG_NAME, "body").send_keys(Keys.END)
-            time.sleep(1)
-            if driver.current_url == original_url:
-                time.sleep(1)
-                driver.find_element(By.TAG_NAME, "body").send_keys(Keys.END)
-                time.sleep(1)
-                if driver.current_url == original_url:
-                    break
-
-        products_sql = []
-        prices_sql = []
-
-        products = driver.find_elements(By.CLASS_NAME, "product-card-cotainer-w")
-        for p in products:
-            element = p.find_element(By.CLASS_NAME, "product-card-text").find_element(By.CLASS_NAME, "product-card-image-link")
-            name = element.find_element(By.CSS_SELECTOR, "span").get_attribute("innerHTML")
-            sku = element.get_attribute("href").split("/")[-1]
-            products_sql.append((sku, category_name, name, sku))
-
-            price = p.find_element(By.CSS_SELECTOR, 'span[itemprop="price"]').text
-            price = ''.join(filter(str.isdigit, price))
-            try:
-                old_price = p.find_element(By.CLASS_NAME, "old-price-container").find_element(By.CSS_SELECTOR, "span")
-                try:
-                    old_price = get_first_price(old_price.text.replace("\u202f", ""))
-                except ValueError:
-                    print(old_price.text)
-                discount_price = price if old_price == 0 else old_price
-            except NoSuchElementException:
-                discount_price = price
-            prices_sql.append((price, discount_price, sku))
-
-        insert_products = "INSERT INTO products (sku, category, name) SELECT ?, ?, ? WHERE NOT EXISTS (SELECT 1 FROM products WHERE sku = ?)"
-        insert_prices = "INSERT INTO prices (normal_price, discount_price, product_sku) VALUES (?, ?, ?)"
-        c.executemany(insert_products, products_sql)
-        c.executemany(insert_prices, prices_sql)
-        conn.commit()
-
-    driver.quit()
-    conn.close()
+# aldi
+# def get_all_price_aldi():
+#     category = webscrape_util.get_category_aldi()
+#     conn = sqlite3.connect('adatbazis_aldi.db')
+#     c = conn.cursor()
+#     driver = webdriver.Chrome(options=options)
+#
+#     for cg in category:
+#         driver.get(cg)
+#         try:
+#             category_name = WebDriverWait(driver, 20).until(EC.presence_of_element_located((By.CSS_SELECTOR, "h1"))).text
+#         except TimeoutException:
+#             print(cg)
+#             category.append(cg)
+#             continue
+#
+#
+#         products_sql = []
+#         prices_sql = []
+#         while True:
+#             original_url = driver.current_url
+#             driver.find_element(By.TAG_NAME, "body").send_keys(Keys.END)
+#             time.sleep(1)
+#             if driver.current_url == original_url:
+#                 time.sleep(1)
+#                 driver.find_element(By.TAG_NAME, "body").send_keys(Keys.END)
+#                 time.sleep(1)
+#                 if driver.current_url == original_url:
+#                     break
+#
+#         products_sql = []
+#         prices_sql = []
+#
+#         products = driver.find_elements(By.CLASS_NAME, "product-card-cotainer-w")
+#         for p in products:
+#             element = p.find_element(By.CLASS_NAME, "product-card-text").find_element(By.CLASS_NAME, "product-card-image-link")
+#             name = element.find_element(By.CSS_SELECTOR, "span").get_attribute("innerHTML")
+#             sku = element.get_attribute("href").split("/")[-1]
+#             products_sql.append((sku, category_name, name, sku))
+#
+#             price = p.find_element(By.CSS_SELECTOR, 'span[itemprop="price"]').text
+#             price = ''.join(filter(str.isdigit, price))
+#             try:
+#                 old_price = p.find_element(By.CLASS_NAME, "old-price-container").find_element(By.CSS_SELECTOR, "span")
+#                 try:
+#                     old_price = get_first_price(old_price.text.replace("\u202f", ""))
+#                 except ValueError:
+#                     print(old_price.text)
+#                 discount_price = price if old_price == 0 else old_price
+#             except NoSuchElementException:
+#                 discount_price = price
+#             prices_sql.append((price, discount_price, sku))
+#
+#         insert_products = "INSERT INTO products (sku, category, name) SELECT ?, ?, ? WHERE NOT EXISTS (SELECT 1 FROM products WHERE sku = ?)"
+#         insert_prices = "INSERT INTO prices (normal_price, discount_price, product_sku) VALUES (?, ?, ?)"
+#         c.executemany(insert_products, products_sql)
+#         c.executemany(insert_prices, prices_sql)
+#         conn.commit()
+#
+#     driver.quit()
+#     conn.close()
 
 
 # Auchan
-def get_all_price_madaras():
+
+
+def get_all_price_auchan():
     def gorgetes():
         current_position = driver.execute_script("return window.pageYOffset;")
         new_position = current_position + 440
@@ -109,6 +131,7 @@ def get_all_price_madaras():
 
         products_sql = []
         prices_sql = []
+        mysql_append = []
         termek_db = driver.find_element(By.CLASS_NAME, "_3MDHKZWk").get_attribute("innerHTML").split(" ")[5]
         for i in range(int(float(termek_db)/5)):
             products = driver.find_elements(By.CLASS_NAME, "_390_dcu3")
@@ -137,11 +160,14 @@ def get_all_price_madaras():
 
                 products_sql.append((sku, category_name, name, sku))
                 prices_sql.append((price, discount_price, sku))
+                mysql_append.append([sku, discount_price])
             gorgetes()
         insert_products = "INSERT INTO products (sku, category, name) SELECT ?, ?, ? WHERE NOT EXISTS (SELECT 1 FROM products WHERE sku = ?)"
         insert_prices = "INSERT INTO prices (normal_price, discount_price, product_sku) VALUES (?, ?, ?)"
         c.executemany(insert_products, products_sql)
         c.executemany(insert_prices, prices_sql)
+        for e in mysql_append:
+            update_mysql_row("auchan", e[0], e[1])
         conn.commit()
 
     driver.quit()
@@ -165,6 +191,7 @@ def get_all_price_tesco():
                 break
             products_sql = []
             prices_sql = []
+            mysql_append = []
             for p in products:
                 element = p.find_element(By.CSS_SELECTOR, "h3 a")
                 sku = element.get_attribute("href").split("/")[-1]
@@ -179,81 +206,85 @@ def get_all_price_tesco():
                 clubcard_price = price if clubcard_price == 0 else clubcard_price
 
                 prices_sql.append((price, clubcard_price, sku))
+                mysql_append.append([sku, clubcard_price])
 
             insert_products = "INSERT INTO products (sku, category, name) SELECT ?, ?, ? WHERE NOT EXISTS (SELECT 1 FROM products WHERE sku = ?)"
             insert_prices = "INSERT INTO prices (normal_price, discount_price, product_sku) VALUES (?, ?, ?)"
             c.executemany(insert_products, products_sql)
             c.executemany(insert_prices, prices_sql)
+            for e in mysql_append:
+                update_mysql_row("tesco", e[0], e[1])
             conn.commit()
             driver.quit()
     conn.close()
 
-def get_all_price_penny():
-    category = webscrape_util.get_category_penny()
-    conn = sqlite3.connect('adatbazis_penny.db')
-    c = conn.cursor()
-    driver = webdriver.Chrome(options=options)
-
-    for cg in category:
-        driver.get(cg)
-        try:
-            category_name = WebDriverWait(driver, 20).until(EC.presence_of_element_located((By.CSS_SELECTOR, "h1"))).text
-        except TimeoutException:
-            print(cg)
-            category.append(cg)
-            continue
-
-        while True:
-            original_url = driver.current_url
-            driver.find_element(By.TAG_NAME, "body").send_keys(Keys.END)
-            time.sleep(1)
-            if driver.current_url == original_url:
-                time.sleep(1)
-                driver.find_element(By.TAG_NAME, "body").send_keys(Keys.END)
-                time.sleep(1)
-                if driver.current_url == original_url:
-                    break
-
-        products_sql = []
-        prices_sql = []
-
-        products = driver.find_elements(By.CLASS_NAME, "product-card")
-        for p in products:
-            element = p.find_element(By.CLASS_NAME, "product-card-text").find_element(By.CLASS_NAME, "product-card-image-link")
-            name = element.find_element(By.CSS_SELECTOR, "span").get_attribute("innerHTML")
-            sku = element.get_attribute("href").split("/")[-1]
-            products_sql.append((sku, category_name, name, sku))
-
-            price = p.find_element(By.CSS_SELECTOR, 'span[itemprop="price"]').text
-            price = ''.join(filter(str.isdigit, price))
-            try:
-                old_price = p.find_element(By.CLASS_NAME, "old-price-container").find_element(By.CSS_SELECTOR, "span")
-                try:
-                    old_price = get_first_price(old_price.text.replace("\u202f", ""))
-                except ValueError:
-                    print(old_price.text)
-                discount_price = price if old_price == 0 else old_price
-            except NoSuchElementException:
-                discount_price = price
-            prices_sql.append((price, discount_price, sku))
-
-        insert_products = "INSERT INTO products (sku, category, name) SELECT ?, ?, ? WHERE NOT EXISTS (SELECT 1 FROM products WHERE sku = ?)"
-        insert_prices = "INSERT INTO prices (normal_price, discount_price, product_sku) VALUES (?, ?, ?)"
-        c.executemany(insert_products, products_sql)
-        c.executemany(insert_prices, prices_sql)
-        conn.commit()
-
-    driver.quit()
-    conn.close()
+# penny
+# def get_all_price_penny():
+#     category = webscrape_util.get_category_penny()
+#     conn = sqlite3.connect('adatbazis_penny.db')
+#     c = conn.cursor()
+#     driver = webdriver.Chrome(options=options)
+#
+#     for cg in category:
+#         driver.get(cg)
+#         try:
+#             category_name = WebDriverWait(driver, 20).until(EC.presence_of_element_located((By.CSS_SELECTOR, "h1"))).text
+#         except TimeoutException:
+#             print(cg)
+#             category.append(cg)
+#             continue
+#
+#         while True:
+#             original_url = driver.current_url
+#             driver.find_element(By.TAG_NAME, "body").send_keys(Keys.END)
+#             time.sleep(1)
+#             if driver.current_url == original_url:
+#                 time.sleep(1)
+#                 driver.find_element(By.TAG_NAME, "body").send_keys(Keys.END)
+#                 time.sleep(1)
+#                 if driver.current_url == original_url:
+#                     break
+#
+#         products_sql = []
+#         prices_sql = []
+#
+#         products = driver.find_elements(By.CLASS_NAME, "product-card")
+#         for p in products:
+#             element = p.find_element(By.CLASS_NAME, "product-card-text").find_element(By.CLASS_NAME, "product-card-image-link")
+#             name = element.find_element(By.CSS_SELECTOR, "span").get_attribute("innerHTML")
+#             sku = element.get_attribute("href").split("/")[-1]
+#             products_sql.append((sku, category_name, name, sku))
+#
+#             price = p.find_element(By.CSS_SELECTOR, 'span[itemprop="price"]').text
+#             price = ''.join(filter(str.isdigit, price))
+#             try:
+#                 old_price = p.find_element(By.CLASS_NAME, "old-price-container").find_element(By.CSS_SELECTOR, "span")
+#                 try:
+#                     old_price = get_first_price(old_price.text.replace("\u202f", ""))
+#                 except ValueError:
+#                     print(old_price.text)
+#                 discount_price = price if old_price == 0 else old_price
+#             except NoSuchElementException:
+#                 discount_price = price
+#             prices_sql.append((price, discount_price, sku))
+#
+#         insert_products = "INSERT INTO products (sku, category, name) SELECT ?, ?, ? WHERE NOT EXISTS (SELECT 1 FROM products WHERE sku = ?)"
+#         insert_prices = "INSERT INTO prices (normal_price, discount_price, product_sku) VALUES (?, ?, ?)"
+#         c.executemany(insert_products, products_sql)
+#         c.executemany(insert_prices, prices_sql)
+#         conn.commit()
+#
+#     driver.quit()
+#     conn.close()
 
 
 # webscrape_util.create_database("auchan")
 # webscrape_util.create_database("tesco")
 # webscrape_util.create_database("aldi")
+
 threading.Thread(target=get_all_price_tesco).start()
-threading.Thread(target=get_all_price_madaras).start()
-threading.Thread(target=get_all_price_aldi).start()
-threading.Thread(target=get_all_price_penny).start()
+threading.Thread(target=get_all_price_auchan).start()
+mysql_conn.close()
 
 
 
