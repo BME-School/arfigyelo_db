@@ -24,14 +24,15 @@ mysql_conn = mysql.connector.connect(**db_config)
 mysql_cursor = mysql_conn.cursor()
 
 
+
 def update_mysql_row(market, sku, value, img=""):
-    mysql_cursor.execute(f"SELECT * FROM products WHERE {market}=?", (sku,))
+    mysql_cursor.execute(f"SELECT * FROM products WHERE {market}=%s", (sku,))
     result = mysql_cursor.fetchone()
     if result:
         if img:
-            mysql_cursor.execute(f"UPDATE products SET {market}_price = ?, img = ? WHERE {market}=?", (value, sku, img))
+            mysql_cursor.execute(f"UPDATE products SET {market}_price = %s, img = %s WHERE {market}=%s", (value, sku, img))
         else:
-            mysql_cursor.execute(f"UPDATE products SET {market}_price = ? WHERE {market}=?", (value, sku))
+            mysql_cursor.execute(f"UPDATE products SET {market}_price = %s WHERE {market}=%s", (value, sku))
         mysql_conn.commit()
 
 
@@ -179,7 +180,7 @@ def get_all_price_auchan():
 
 def get_all_price_tesco():
     category = webscrape_util.get_category_tesco()
-    conn = sqlite3.connect('adatbazis_tesco.db')
+    conn = sqlite3.connect('databases/adatbazis_tesco.db')
     c = conn.cursor()
     for cg in category:
         i = 1
@@ -189,17 +190,18 @@ def get_all_price_tesco():
             driver.get(cg+f"&page={i}&count=48")
             i += 1
 
-            products = driver.find_elements(By.CLASS_NAME, "product-details--wrapper")
+            products = driver.find_elements(By.CLASS_NAME, "product-list--list-item")
             if len(products) == 0:
                 break
             products_sql = []
             prices_sql = []
             mysql_append = []
-            for p in products:
+            for j in products:
+                p = driver.find_element(By.CLASS_NAME, "product-details--wrapper")
                 element = p.find_element(By.CSS_SELECTOR, "h3 a")
                 sku = element.get_attribute("href").split("/")[-1]
                 name = p.find_element(By.CSS_SELECTOR, "h3 span").get_attribute("innerHTML")
-                image = p.find_element(By.CSS_SELECTOR, ".product-image").get_attribute("src")
+                image = j.find_element(By.CSS_SELECTOR, ".product-image").get_attribute("src")
                 products_sql.append((sku, category_name, name, sku))
                 try:
                     price = get_first_price(p.find_element(By.CLASS_NAME, "beans-price__text").text)
@@ -210,7 +212,7 @@ def get_all_price_tesco():
                 clubcard_price = price if clubcard_price == 0 else clubcard_price
 
                 prices_sql.append((price, clubcard_price, sku))
-                mysql_append.append([sku, clubcard_price, img])
+                mysql_append.append([sku, clubcard_price, image])
 
             insert_products = "INSERT INTO products (sku, category, name) SELECT ?, ?, ? WHERE NOT EXISTS (SELECT 1 FROM products WHERE sku = ?)"
             insert_prices = "INSERT INTO prices (normal_price, discount_price, product_sku) VALUES (?, ?, ?)"
