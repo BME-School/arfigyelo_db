@@ -24,11 +24,14 @@ mysql_conn = mysql.connector.connect(**db_config)
 mysql_cursor = mysql_conn.cursor()
 
 
-def update_mysql_row(market, sku, value):
+def update_mysql_row(market, sku, value, img=""):
     mysql_cursor.execute(f"SELECT * FROM products WHERE {market}=?", (sku,))
     result = mysql_cursor.fetchone()
     if result:
-        mysql_cursor.execute(f"UPDATE products SET {market}_price = ? WHERE {market}=?", (value, sku))
+        if img:
+            mysql_cursor.execute(f"UPDATE products SET {market}_price = ?, img = ? WHERE {market}=?", (value, sku, img))
+        else:
+            mysql_cursor.execute(f"UPDATE products SET {market}_price = ? WHERE {market}=?", (value, sku))
         mysql_conn.commit()
 
 
@@ -196,6 +199,7 @@ def get_all_price_tesco():
                 element = p.find_element(By.CSS_SELECTOR, "h3 a")
                 sku = element.get_attribute("href").split("/")[-1]
                 name = p.find_element(By.CSS_SELECTOR, "h3 span").get_attribute("innerHTML")
+                image = p.find_element(By.CSS_SELECTOR, ".product-image").get_attribute("src")
                 products_sql.append((sku, category_name, name, sku))
                 try:
                     price = get_first_price(p.find_element(By.CLASS_NAME, "beans-price__text").text)
@@ -206,14 +210,14 @@ def get_all_price_tesco():
                 clubcard_price = price if clubcard_price == 0 else clubcard_price
 
                 prices_sql.append((price, clubcard_price, sku))
-                mysql_append.append([sku, clubcard_price])
+                mysql_append.append([sku, clubcard_price, img])
 
             insert_products = "INSERT INTO products (sku, category, name) SELECT ?, ?, ? WHERE NOT EXISTS (SELECT 1 FROM products WHERE sku = ?)"
             insert_prices = "INSERT INTO prices (normal_price, discount_price, product_sku) VALUES (?, ?, ?)"
             c.executemany(insert_products, products_sql)
             c.executemany(insert_prices, prices_sql)
             for e in mysql_append:
-                update_mysql_row("tesco", e[0], e[1])
+                update_mysql_row("tesco", e[0], e[1], e[2])
             conn.commit()
             driver.quit()
     conn.close()
@@ -282,8 +286,7 @@ def get_all_price_tesco():
 # webscrape_util.create_database("tesco")
 # webscrape_util.create_database("aldi")
 
-threading.Thread(target=get_all_price_tesco).start()
-threading.Thread(target=get_all_price_auchan).start()
+get_all_price_tesco()
 mysql_conn.close()
 
 
