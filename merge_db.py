@@ -1,4 +1,5 @@
 import sqlite3
+import mysql.connector
 
 
 def create_tables(dbs, cursor):
@@ -119,11 +120,35 @@ def db_merge():
 
 # db_merge()
 
+db_config = {
+    "host": "localhost",
+    "user": "admin",
+    "password": "admin",
+    "database": "arfigyelo"
+}
 
-db_conn = sqlite3.connect(f'databases/merged_db.db')
-db_cursor = db_conn.cursor()
-db_cursor.execute('SELECT * FROM products WHERE tesco IS NULL')
-products = db_cursor.fetchall()
-for p in products:
-    print(p)
+mysql_conn = mysql.connector.connect(**db_config)
+mysql_cursor = mysql_conn.cursor()
+
+
+def update_mysql_row(sku, img):
+    mysql_cursor.execute(f"SELECT * FROM products WHERE tesco=%s", (sku,))
+    result = mysql_cursor.fetchone()
+    if result:
+        mysql_cursor.execute(f"UPDATE products SET img = %s WHERE tesco=%s", (img, sku))
+        mysql_conn.commit()
+
+
+def add_product_image():
+    db_conn = sqlite3.connect(f'databases/tesco_img_link.db')
+    db_cursor = db_conn.cursor()
+    db_cursor.execute('SELECT * FROM products')
+    products = db_cursor.fetchall()
+    for p in products:
+        update_mysql_row(p[0], p[3])
+
+
+# add_product_image()
+mysql_conn.close()
+
 
